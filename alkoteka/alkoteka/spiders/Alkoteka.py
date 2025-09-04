@@ -2,7 +2,7 @@ import json
 import traceback
 from datetime import datetime, UTC
 from pathlib import Path
-from random import choice
+from random import choice  # подключался для произвольного выбора прокси.
 
 from scrapy import Spider, Request, http
 from scrapy.exceptions import NotConfigured
