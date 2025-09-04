@@ -175,7 +175,7 @@ class Alkoteka(Spider):
             if item.get('code') == "brend":
                 return ' '.join(
                     map(
-                        lambda value: value.get("name", ""),
+                        lambda value: str(_a) if (_a := value.get("name", "")) and isinstance(_a, int | float) else _a,
                         item.get("values", tuple())
 
                     )
@@ -438,7 +438,10 @@ class Alkoteka(Spider):
 
 
         except Exception as e:
-            self.logger.error(f"[ PARSE_ITEMS ] Failed to parse JSON on {response.url}: {e.with_traceback()}")
+            self.logger.error(f"[ PARSE_ITEMS ] Failed to parse JSON on {response.url}: {e.args}")
+            self.logger.error(f"[ PARSE_ITEMS ] {'='*20}")
+            self.logger.error(f"[ PARSE_ITEMS ] {data.get('description_blocks') }")
+            self.logger.error(f"[ PARSE_ITEMS ] {'=' * 20}")
             return
 
 
