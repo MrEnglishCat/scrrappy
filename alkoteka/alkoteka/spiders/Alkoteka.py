@@ -45,7 +45,14 @@ class Alkoteka(Spider):
 
     config: AlkotekaConfig = AlkotekaConfig()
 
-    def __init__(self, city_uuid: str = None, file_path: str = None, *args, **kwargs) -> None:
+    def __init__(self, city_name: str = None, file_path: str = None, *args, **kwargs) -> None:
+        """
+
+        :param city_name: название локации(город)
+        :param file_path: путь к файлу со списком входящих URL с категориями
+        :param args:
+        :param kwargs:
+        """
         super().__init__(*args, **kwargs)
 
         if file_path and Path(file_path).exists():
@@ -56,10 +63,22 @@ class Alkoteka(Spider):
             self.logger.error(
                 f"🚨 Файл {file_path} не существует! URL будут получены из атрибута класса STARTS_URL, проверьте что бы он был заполнен в коде.")
 
-        if city_uuid:
-            self.__city_uuid = city_uuid
+        if city_name:
+            self.city_name = city_name
 
         self.proxy_pool = type(self)._get_proxies()
+
+    @property
+    def city_name(self) -> str:
+        if hasattr(self, '_city_name'):
+            return self._city_name
+        raise AttributeError("Атрибута '_city_name' еще нету!")
+
+    @city_name.setter
+    def city_name(self, city_name_: str) -> None:
+        if not isinstance(city_name_, str):
+            raise ValueError(f"Доступное значение city_name только <class 'str'>!")
+        self._city_name = city_name_
 
     @staticmethod
     def get_random_headers() -> dict:
@@ -77,7 +96,7 @@ class Alkoteka(Spider):
         }
 
     @classmethod
-    def _get_proxies(cls)->list[str]:
+    def _get_proxies(cls) -> list[str]:
         """
         Получение списка IP прокси по урлу.
         :return:
@@ -116,7 +135,7 @@ class Alkoteka(Spider):
         return path[-1]
 
     @staticmethod
-    def _get_title(name: str, description_blocks: list)->str:
+    def _get_title(name: str, description_blocks: list) -> str:
         """
         Для получения полного заголовка с учетом цвета
         :param name:
@@ -142,7 +161,7 @@ class Alkoteka(Spider):
         return name
 
     @staticmethod
-    def _get_marketing_tags(marketing_tags: list) -> list|tuple:
+    def _get_marketing_tags(marketing_tags: list) -> list | tuple:
         """
         Получение маркетинговых тэгов
         :param marketing_tags:
@@ -182,7 +201,7 @@ class Alkoteka(Spider):
         """
         names = []
 
-        def get_name_recursive(cat:dict)->None:
+        def get_name_recursive(cat: dict) -> None:
             if not cat:
                 return
 
@@ -324,12 +343,12 @@ class Alkoteka(Spider):
 
         return result
 
-    def _make_request(self, slug:str, page:int):
+    def _make_request(self, slug: str, page: int):
         url = type(self).config.ALKOTEKA_API_CATALOG.format(
             page=page,
             per_page=type(self).config.DEFAULT_PER_PAGE,
             root_category_slug=slug,
-            city_uuid=type(self).config.current_city_uuid,
+            current_city_uuid=type(self).config.current_city_uuid,
         )
         payload = {
             'city_uuid': type(self).config.current_city_uuid,
@@ -351,7 +370,37 @@ class Alkoteka(Spider):
 
         )
 
+    def __change_city_uuid(self, response: http.JsonResponse):
+        """
+            Используется для смены локации. Для поиска параметров
+        :param response:
+        :return:
+        """
+        data = response.json()
+        if data.get("success") and (cities := data.get("results")):
+            main_city = cities[0]
+            self.logger.debug(f"ℹ️️ Найден список городов: {cities}")
+            self.logger.warning(f"ℹ️️ Выбран первый в списке город: {main_city}")
+            type(self).config.current_city_uuid = main_city.get("uuid")
+            self.logger.warning(f"ℹ️️ Произведена смена города на: {main_city.get('name')}")
+        else:
+            self.logger.error(f"🚨 Смена города не произведена. Городов не найдено по условию: '{response.meta.get('city_name')}'. Город по умолчанию: {type(self).config.current_city_uuid} - Краснодар.")
+
     def start_requests(self):
+        if self.city_name:
+            yield Request(
+                url=type(self).config.ALKOTEKA_API_CITY_SEARCH.format(
+                    current_city_uuid=type(self).config.current_city_uuid,
+                    city_name=self.city_name
+                ),
+                headers=type(self).get_random_headers(),
+                callback=self.__change_city_uuid,
+                meta={
+                    "city_name": self.city_name,
+                }
+
+            )
+
         if not hasattr(self, 'ROOT_CATEGORY_SLUGS'):
             self.ROOT_CATEGORY_SLUGS = []
         if type(self).STARTS_URL:
@@ -367,21 +416,6 @@ class Alkoteka(Spider):
 
         for slug in type(self).ROOT_CATEGORY_SLUGS:
             yield self._make_request(slug, page=1)
-
-
-    def parse_city(self, response: http.JsonResponse):
-
-        data = response.json()
-        if data.get("success") and (cities := data.get("results")):
-            main_city = cities[0]
-            self.logger.debug(f"Найден список городов: {cities}")
-            self.logger.warning(f"Выбран первый в списке город: {main_city}")
-            type(self).config.current_city_uuid = main_city.get("uuid")
-
-
-
-
-
 
     def parse(self, response: http.JsonResponse) -> dict:
         """
@@ -408,8 +442,10 @@ class Alkoteka(Spider):
             total_pages = get_total_pages(total_items, type(self).config.DEFAULT_PER_PAGE)
             for index, item in enumerate(data.get('results', []), 1):
                 if (item_slug := item.get("slug")):
-                    url = type(self).config.ALKOTEKA_API_ITEM_URL.format(item_slug=item_slug,
-                                                                         city_uuid=type(self).config.current_city_uuid)
+                    url = type(self).config.ALKOTEKA_API_ITEM_URL.format(
+                        item_slug=item_slug,
+                        current_city_uuid=type(self).config.current_city_uuid
+                    )
                     payload = {
                         'city_uuid': type(self).config.current_city_uuid,
                     }
