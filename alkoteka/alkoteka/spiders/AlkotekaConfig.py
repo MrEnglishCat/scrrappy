@@ -4,6 +4,9 @@ from dataclasses import dataclass
 @dataclass
 class AlkotekaConfig:
     BASE_URL = 'https://alkoteka.com'
+    """
+        Базовый URL для API
+    """
 
     ALKOTEKA_API_CATALOG: str = f'{BASE_URL}/web-api/v1/product?city_uuid={{current_city_uuid}}&page={{page}}&per_page={{per_page}}&root_category_slug={{root_category_slug}}'
     """
