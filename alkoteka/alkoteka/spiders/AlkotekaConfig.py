@@ -5,13 +5,15 @@ from dataclasses import dataclass
 class AlkotekaConfig:
     BASE_URL = 'https://alkoteka.com'
 
-    ALKOTEKA_API_CATALOG: str = 'https://alkoteka.com/web-api/v1/product?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416&page={page}&per_page={per_page}&root_category_slug={root_category_slug}'
+    # ALKOTEKA_API_CATALOG: str = 'https://alkoteka.com/web-api/v1/product?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416&page={page}&per_page={per_page}&root_category_slug={root_category_slug}'
+    ALKOTEKA_API_CATALOG: str = 'https://alkoteka.com/web-api/v1/product?city_uuid={city_uuid}&page={page}&per_page={per_page}&root_category_slug={root_category_slug}'
     """
     в meta "has_more_pages": false, - можно определить  последняя ли это страница
     Используется для получения списка слагов на товары. Лимиты выставляются передавая параметр per_page, page
     """
 
-    ALKOTEKA_API_ITEM_URL: str = 'https://alkoteka.com/web-api/v1/product/{item_slug}?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416'
+    # ALKOTEKA_API_ITEM_URL: str = 'https://alkoteka.com/web-api/v1/product/{item_slug}?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416'
+    ALKOTEKA_API_ITEM_URL: str = 'https://alkoteka.com/web-api/v1/product/{item_slug}?city_uuid={city_uuid}'
     """
     API для получения данных об определенном товаре
     """
@@ -32,7 +34,7 @@ class AlkotekaConfig:
 
     PROXY_FILEPATH: str = "proxy_pool.json"
 
-    city_uuid: str = '4a70f9e0-46ae-11e7-83ff-00155d026416'
+    current_city_uuid: str = '4a70f9e0-46ae-11e7-83ff-00155d026416'
     """
     идентификатор Краснодара для API       
     """
