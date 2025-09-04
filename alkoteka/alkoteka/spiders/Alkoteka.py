@@ -162,12 +162,22 @@ class Alkoteka(Spider):
 
     @staticmethod
     def _get_marketing_tags(marketing_tags: list) -> list | None:
+        """
+        Получение маркетинговых тэгов
+        :param marketing_tags:
+        :return:
+        """
         if not marketing_tags:
             return
         return tuple(map(lambda tag: tag.get("title"), marketing_tags))
 
     @staticmethod
     def _get_brand(description_blocks: list) -> str:
+        """
+        Получение информации о брендах
+        :param description_blocks:
+        :return:
+        """
         if not description_blocks:
             return ""
 
@@ -186,6 +196,8 @@ class Alkoteka(Spider):
         """
         Рекурсивно собирает все 'name' от корневой категории до текущей.
         Порядок: от верхнего уровня к нижнему (например: ['Вино', 'Вино тихое'])
+        :param category:
+        :return:
         """
         names = []
 
@@ -208,12 +220,14 @@ class Alkoteka(Spider):
     @staticmethod
     def _get_variants_count(filters: list) -> int:
         """
-        Считает количество вариантов товара по признакам:
+         Считает количество вариантов товара по признакам:
         - цвет (code == 'cvet')
         - объём/масса (code == 'obem' или 'massa')
 
         Если таких фильтров нет — возвращает 1.
         Если есть несколько — перемножает количество значений.
+        :param filters:
+        :return:
         """
         import math
         print("="*10)
@@ -225,7 +239,6 @@ class Alkoteka(Spider):
         VARIANT_CODES = {'cvet', 'obem', 'massa'}
 
         total_variants = 1
-        # try:
         for filter_item in filters:
             code = filter_item.get("code")
             if code not in VARIANT_CODES:
@@ -247,14 +260,17 @@ class Alkoteka(Spider):
                     else:
                         count = 1
                     total_variants *= count
-        # except Exception as e:
-        #     print("EXCEPTION:", e)
 
         return total_variants if total_variants >= 1 else 1
 
     @staticmethod
     def _get_sale_tag(price, prev_price=None) -> str:
-
+        """
+        Подсчет процента скидки
+        :param price: обычная цена если не указано prev_price, цена со скидкой еслил указана prev_price
+        :param prev_price: обычная цена если есть скидка.
+        :return:
+        """
         if not prev_price:
             return ""
         price = float(price)
