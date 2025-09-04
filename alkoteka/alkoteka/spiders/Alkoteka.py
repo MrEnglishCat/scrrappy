@@ -139,14 +139,14 @@ class Alkoteka(Spider):
         return name
 
     @staticmethod
-    def _get_marketing_tags(marketing_tags: list) -> list | None:
+    def _get_marketing_tags(marketing_tags: list) -> list:
         """
         Получение маркетинговых тэгов
         :param marketing_tags:
         :return:
         """
         if not marketing_tags:
-            return
+            return list()
         return tuple(map(lambda tag: tag.get("title"), marketing_tags))
 
     @staticmethod
@@ -245,7 +245,7 @@ class Alkoteka(Spider):
         :return:
         """
         if not prev_price:
-            return ""
+            return f"Скидка 0%"
         price = float(price)
         prev_price = float(prev_price)
         discount_persent = 100 - price * 100 / prev_price
@@ -450,7 +450,7 @@ class Alkoteka(Spider):
                 alkoteka_item["brand"] = type(self)._get_brand(data.get("description_blocks"))
                 alkoteka_item["section"] = type(self)._get_section(data.get("category"))
                 alkoteka_item["price_data"] = {
-                    "current": prev_price if (prev_price := data.get("prev_price")) else data.get("price"),
+                    "current": prev_price if (prev_price := data.get("prev_price")) else data.get("price", 0.0),
                     "original": data.get("price"),
                     "sale_gate": type(self)._get_sale_tag(data.get("price"), data.get("prev_price"))
                 }
