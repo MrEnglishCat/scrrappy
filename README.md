@@ -12,6 +12,15 @@
 ---
 
 ## 📦 Установка
+1. TOTAL COMMANDS:
+    ```bash
+   python --version
+   git clone https://github.com/MrEnglishCat/scrrappy.git
+   python -m venv venv
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   cd alkoteka
+   scrapy crawl alkoteka -O result.json
 
 1. Убедитесь, что установлен **Python 3.12 или выше**  
    Проверить:  
@@ -20,7 +29,7 @@
 
 1. Клонировать проект: 
     ```bash
-    git clone https://github.com/ваш-профиль/alkoteka.git
+    git clone https://github.com/MrEnglishCat/scrrappy.git
     ```
 1. Создать виртуальное окружение: 
     ```bash
