@@ -12,15 +12,6 @@
 ---
 
 ## 📦 Установка
-1. TOTAL COMMANDS:
-    ```bash
-   python --version
-   git clone https://github.com/MrEnglishCat/scrrappy.git
-   python -m venv venv
-   venv\Scripts\activate
-   pip install -r requirements.txt
-   cd alkoteka
-   scrapy crawl alkoteka -O result.json
 
 1. Убедитесь, что установлен **Python 3.12 или выше**  
    Проверить:  
@@ -62,3 +53,23 @@
         scrapy crawl alkoteka -O result.json
    
 
+### 📦 УСТАНОВКА И ЗАПУСК ЧЕРЕЗ ТЕРМИНАЛ
+
+1. Нужен предустановленный **python 3.12+**
+    ```bash
+    python --version
+    git clone https://github.com/MrEnglishCat/scrrappy.git
+    cd scrrappy
+    python -m venv venv
+    venv\Scripts\activate
+    pip install -r requirements.txt
+    cd alkoteka
+   
+    # команда запуска без файла со списком URL
+    scrapy crawl alkoteka -O result.json
+   
+    # команда запуска с указанием абсолютного пути файла с URL
+    scrapy crawl alkoteka -a file_path=D:\_work\tests\scrrappy\test.txt -O result.json
+   
+    # или относительного пути, относительно каталого scrrappy/alkoteka (из него запускается парсер)
+    scrapy crawl alkoteka -a file_path=..\test.txt -O result.json
