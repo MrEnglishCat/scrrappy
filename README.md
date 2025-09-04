@@ -43,7 +43,7 @@
     ```bash
     cd alkoteka
 3. Есть 2 команды для запуска:
-    - С указанием абсолютного пути к файлу с исходными ссылками на категории:
+    - С указанием абсолютного(или относительного - к "/scrrappy/alkoteka") пути к файлу с исходными ссылками на категории:
         ```bash 
         scrapy crawl alkoteka -a file_path=D:\_work\tests\scrrappy\test.txt -O result.json 
    
