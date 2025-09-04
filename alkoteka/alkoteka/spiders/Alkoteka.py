@@ -1,4 +1,5 @@
 import json
+import traceback
 from datetime import datetime, UTC
 from random import choice
 
@@ -81,8 +82,6 @@ class Alkoteka(Spider):
     идентификатор Краснодара для API       
     """
 
-
-
     def __init__(self, from_file=False, file_path=None, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         # TODO доделать возможность загрузки урлов при старте парсера
@@ -92,7 +91,6 @@ class Alkoteka(Spider):
         #         # type(self).STARTS_URL = list(map(str.strip(f.readlines()))
 
         self.proxy_pool = type(self)._get_proxies()
-
 
     @classmethod
     def _get_proxies(cls):
@@ -105,7 +103,6 @@ class Alkoteka(Spider):
             proxies = json.load(f)
 
             return proxies
-
 
     @classmethod
     def _parse_input_url(cls, urls: list | tuple) -> list:
@@ -230,10 +227,10 @@ class Alkoteka(Spider):
         :return:
         """
         import math
-        print("="*10)
-        print("="*10)
+        print("=" * 10)
+        print("=" * 10)
         print(int(datetime.now(UTC).timestamp()))
-        print("="*10)
+        print("=" * 10)
         print(filters)
         print("=" * 10)
         VARIANT_CODES = {'cvet', 'obem', 'massa'}
@@ -278,7 +275,8 @@ class Alkoteka(Spider):
         discount_persent = 100 - price * 100 / prev_price
         return f"Скидка {discount_persent}%"
 
-    @deprecated("Метод не используется. Вместо него используется получение общего количества товаров через JSON ответа.")
+    @deprecated(
+        "Метод не используется. Вместо него используется получение общего количества товаров через JSON ответа.")
     @staticmethod
     def _get_count_item(stores: list | int) -> int:
         """
@@ -333,7 +331,8 @@ class Alkoteka(Spider):
                     title,
                     ' '.join(
                         map(
-                            lambda value: value.get("name"),
+                            lambda value: str(_a) if (_a := value.get("name", "")) and isinstance(_a,
+                                                                                                  int | float) else _a,
                             values
                         )
                     )
@@ -454,9 +453,10 @@ class Alkoteka(Spider):
 
 
         except Exception as e:
-            self.logger.error(f"[ PARSE_ITEMS ] Failed to parse JSON on {response.url}: {e.args}")
-            self.logger.error(f"[ PARSE_ITEMS ] {'='*20}")
-            self.logger.error(f"[ PARSE_ITEMS ] {data.get('description_blocks') }")
+            self.logger.error(
+                f"[ PARSE_ITEMS ] Failed to parse JSON on {response.url}: {e.args} {traceback.format_exc()}")
+            self.logger.error(f"[ PARSE_ITEMS ] {'=' * 20}")
+            self.logger.error(f"[ PARSE_ITEMS ] {data.get('description_blocks')}")
             self.logger.error(f"[ PARSE_ITEMS ] {'=' * 20}")
             return
 
