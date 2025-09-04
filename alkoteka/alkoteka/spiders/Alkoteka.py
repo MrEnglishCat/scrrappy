@@ -216,32 +216,39 @@ class Alkoteka(Spider):
         Если есть несколько — перемножает количество значений.
         """
         import math
-
+        print("="*10)
+        print("="*10)
+        print(int(datetime.now(UTC).timestamp()))
+        print("="*10)
+        print(filters)
+        print("=" * 10)
         VARIANT_CODES = {'cvet', 'obem', 'massa'}
 
         total_variants = 1
+        try:
+            for filter_item in filters:
+                code = filter_item.get("code")
+                if code not in VARIANT_CODES:
+                    continue
 
-        for filter_item in filters:
-            code = filter_item.get("code")
-            if code not in VARIANT_CODES:
-                continue
+                if filter_item.get("type") == "select":  # на тот случай, если где-то объем указан списком значений
+                    values = filter_item.get("values", [])
+                    count = len([v for v in values if v.get("enabled", False)])
+                    if count > 0:
+                        total_variants *= count
 
-            if filter_item.get("type") == "select":  # на тот случай, если где-то объем указан списком значений
-                values = filter_item.get("values", [])
-                count = len([v for v in values if v.get("enabled", False)])
-                if count > 0:
-                    total_variants *= count
+                elif filter_item.get("type") == "range":
 
-            elif filter_item.get("type") == "range":
-
-                min_val = filter_item.get("min")
-                max_val = filter_item.get("max")
-                if min_val is not None and max_val is not None:
-                    if math.isclose(min_val, max_val, abs_tol=1e-9):
-                        count = 1
-                    else:
-                        count = 1
-                    total_variants *= count
+                    min_val = filter_item.get("min")
+                    max_val = filter_item.get("max")
+                    if min_val is not None and max_val is not None:
+                        if math.isclose(min_val, max_val, abs_tol=1e-9):
+                            count = 1
+                        else:
+                            count = 1
+                        total_variants *= count
+        except Exception as e:
+            print("EXCEPTION:", e)
 
         return total_variants if total_variants >= 1 else 1
 
@@ -397,7 +404,7 @@ class Alkoteka(Spider):
         """
         try:
             data_response = response.json()
-            self.logger.debug(f"Response from {response.meta.get("product_url")}")
+            # self.logger.debug(f"Response from {response.meta.get("product_url")}")
             if (data := data_response.get('results')):
                 alkoteka_item = AlkotekaItem()
                 alkoteka_item["timestamp"] = int(datetime.now(UTC).timestamp())
@@ -425,13 +432,13 @@ class Alkoteka(Spider):
                     **type(self)._get_all_characteristics(data.get("description_blocks"))
                 }
                 alkoteka_item["variants"] = type(self)._get_variants_count(data.get("description_blocks"))
-
+                self.logger.info(f"{alkoteka_item}")
                 yield alkoteka_item
 
 
 
         except Exception as e:
-            self.logger.error(f"Failed to parse JSON on {response.url}: {e}")
+            self.logger.error(f"[ PARSE_ITEMS ] Failed to parse JSON on {response.url}: {e}")
             return
 
 
