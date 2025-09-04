@@ -225,30 +225,30 @@ class Alkoteka(Spider):
         VARIANT_CODES = {'cvet', 'obem', 'massa'}
 
         total_variants = 1
-        try:
-            for filter_item in filters:
-                code = filter_item.get("code")
-                if code not in VARIANT_CODES:
-                    continue
+        # try:
+        for filter_item in filters:
+            code = filter_item.get("code")
+            if code not in VARIANT_CODES:
+                continue
 
-                if filter_item.get("type") == "select":  # на тот случай, если где-то объем указан списком значений
-                    values = filter_item.get("values", [])
-                    count = len([v for v in values if v.get("enabled", False)])
-                    if count > 0:
-                        total_variants *= count
+            if filter_item.get("type") == "select":  # на тот случай, если где-то объем указан списком значений
+                values = filter_item.get("values", [])
+                count = len([v for v in values if v.get("enabled", False)])
+                if count > 0:
+                    total_variants *= count
 
-                elif filter_item.get("type") == "range":
+            elif filter_item.get("type") == "range":
 
-                    min_val = filter_item.get("min")
-                    max_val = filter_item.get("max")
-                    if min_val is not None and max_val is not None:
-                        if math.isclose(min_val, max_val, abs_tol=1e-9):
-                            count = 1
-                        else:
-                            count = 1
-                        total_variants *= count
-        except Exception as e:
-            print("EXCEPTION:", e)
+                min_val = filter_item.get("min")
+                max_val = filter_item.get("max")
+                if min_val is not None and max_val is not None:
+                    if math.isclose(min_val, max_val, abs_tol=1e-9):
+                        count = 1
+                    else:
+                        count = 1
+                    total_variants *= count
+        # except Exception as e:
+        #     print("EXCEPTION:", e)
 
         return total_variants if total_variants >= 1 else 1
 
@@ -438,7 +438,7 @@ class Alkoteka(Spider):
 
 
         except Exception as e:
-            self.logger.error(f"[ PARSE_ITEMS ] Failed to parse JSON on {response.url}: {e}")
+            self.logger.error(f"[ PARSE_ITEMS ] Failed to parse JSON on {response.url}: {e.with_traceback()}")
             return
 
 
