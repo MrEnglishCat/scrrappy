@@ -1,16 +1,19 @@
 import json
 from datetime import datetime, UTC
+from random import choice
 
+import requests
 from scrapy import Spider, Request, http
 from fake_useragent import UserAgent
-
-# from alkoteka.alkoteka.items import AlkotekaItem
+from urllib.parse import urlparse, urlsplit
 from alkoteka.items import AlkotekaItem
+from typing_extensions import deprecated
 
 
 # uuid city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416 - Краснодар
 
-
+# https://alkoteka.com/catalog/slaboalkogolnye-napitki-2
+# https://alkoteka.com/web-api/v1/product?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416&page=1&per_page=20&root_category_slug=slaboalkogolnye-napitki-2
 # TODO не забыть про бесплатные прокси
 
 def get_random_headers() -> dict:
@@ -30,12 +33,23 @@ def get_random_headers() -> dict:
 
 class Alkoteka(Spider):
     name = 'alkoteka'
-    starts_url = (
+    BASE_URL = 'https://alkoteka.com'
+    STARTS_URL = (
         'https://alkoteka.com/catalog/vino',
         'https://alkoteka.com/catalog/krepkiy-alkogol',
         'https://alkoteka.com/catalog/slaboalkogolnye-napitki-2',
 
     )
+
+    ROOT_CATEGORY_SLUGS = [
+        # 'vino',
+        # 'slaboalkogolnye-napitki-2',
+        # 'bezalkogolnye-napitki-1'
+    ]
+    """
+    Картеж категорий по слагам для сбора данных передается в API, 
+    формируется из ссылок STARTS_URL при запуске паука.
+    """
 
     allowed_domains = ["alkoteka.com"]
 
@@ -56,20 +70,78 @@ class Alkoteka(Spider):
     """
 
     ALKOTEKA_API_ITEM_URL = 'https://alkoteka.com/web-api/v1/product/{item_slug}?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416'
+    """
+    API для получения данных об определенном товаре
+    """
 
-    ROOT_CATEGORY_SLUGS = (
-        'vino',
-        # 'slaboalkogolnye-napitki-2',
-        # 'bezalkogolnye-napitki-1'
-    )
-    """
-    Картеж категорий по слагам для сбора данных
-    """
+    PROXY_FILEPATH = "proxy_pool.json"
 
     city_uuid = '4a70f9e0-46ae-11e7-83ff-00155d026416'
+    """
+    идентификатор Краснодара для API       
+    """
+
+
+
+    def __init__(self, from_file=False, file_path=None, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # TODO доделать возможность загрузки урлов при старте парсера
+        # if from_file:
+        #     with open(file_path, 'r', encoding='utf-8') as f:
+        #         print(f.readlines())
+        #         # type(self).STARTS_URL = list(map(str.strip(f.readlines()))
+
+        self.proxy_pool = type(self)._get_proxies()
+
+
+    @classmethod
+    def _get_proxies(cls):
+        """
+        Получение списка IP прокси по урлу.
+        :return:
+        """
+
+        with open(cls.PROXY_FILEPATH) as f:
+            proxies = json.load(f)
+
+            return proxies
+
+
+    @classmethod
+    def _parse_input_url(cls, urls: list | tuple) -> list:
+        """
+        Для получения из списка урл STARTS_URL со слагами
+        :param urls: список входных url
+        :return: список слагов
+        """
+        return list(
+            map(
+                lambda url: cls._get_slug(url),
+                urls
+            )
+        )
+
+    @staticmethod
+    def _get_slug(url: str) -> str:
+        """
+         заточен на определенный формат ссылки https://alkoteka.com/catalog/vino
+            - первая часть https://alkoteka.com/catalog/
+            - обязательно наличие слага, пример /vino
+        :param url:
+        :return: slug который нужен для подстановки в API
+        """
+        path = urlparse(url).path.rsplit('/', 1)
+
+        return path[-1]
 
     @staticmethod
     def _get_title(name: str, description_blocks: list):
+        """
+        Для получения полного заголовка с учетом цвета
+        :param name:
+        :param description_blocks:
+        :return:
+        """
 
         for block in description_blocks:
             match block.get("code"):
@@ -86,15 +158,13 @@ class Alkoteka(Spider):
                 case "krepost" | "ves":
                     name += " " + f"{block.get("max")} {block.get('unit')}"
 
-
         return name
 
     @staticmethod
-    def _get_marketing_tags(marketing_tags: list)->list|None:
+    def _get_marketing_tags(marketing_tags: list) -> list | None:
         if not marketing_tags:
             return
         return tuple(map(lambda tag: tag.get("title"), marketing_tags))
-
 
     @staticmethod
     def _get_brand(description_blocks: list) -> str:
@@ -112,6 +182,70 @@ class Alkoteka(Spider):
                 )
 
     @staticmethod
+    def _get_section(category: dict) -> list:
+        """
+        Рекурсивно собирает все 'name' от корневой категории до текущей.
+        Порядок: от верхнего уровня к нижнему (например: ['Вино', 'Вино тихое'])
+        """
+        names = []
+
+        def get_name_recursive(cat):
+            if not cat:
+                return
+
+            parent = cat.get("parent")
+
+            if parent:
+                get_name_recursive(parent)
+            name = cat.get("name")
+            if name:
+                names.append(name)
+
+        get_name_recursive(category)
+        return names
+
+    # TODO пересмотреть метод по подсчету variants ERRORS
+    @staticmethod
+    def _get_variants_count(filters: list) -> int:
+        """
+        Считает количество вариантов товара по признакам:
+        - цвет (code == 'cvet')
+        - объём/масса (code == 'obem' или 'massa')
+
+        Если таких фильтров нет — возвращает 1.
+        Если есть несколько — перемножает количество значений.
+        """
+        import math
+
+        VARIANT_CODES = {'cvet', 'obem', 'massa'}
+
+        total_variants = 1
+
+        for filter_item in filters:
+            code = filter_item.get("code")
+            if code not in VARIANT_CODES:
+                continue
+
+            if filter_item.get("type") == "select":  # на тот случай, если где-то объем указан списком значений
+                values = filter_item.get("values", [])
+                count = len([v for v in values if v.get("enabled", False)])
+                if count > 0:
+                    total_variants *= count
+
+            elif filter_item.get("type") == "range":
+
+                min_val = filter_item.get("min")
+                max_val = filter_item.get("max")
+                if min_val is not None and max_val is not None:
+                    if math.isclose(min_val, max_val, abs_tol=1e-9):
+                        count = 1
+                    else:
+                        count = 1
+                    total_variants *= count
+
+        return total_variants if total_variants >= 1 else 1
+
+    @staticmethod
     def _get_sale_tag(price, prev_price=None) -> str:
 
         if not prev_price:
@@ -121,12 +255,15 @@ class Alkoteka(Spider):
         discount_persent = 100 - price * 100 / prev_price
         return f"Скидка {discount_persent}%"
 
-        # price - х% - соскидкой
-        # prev_price - 100%  - без скидки
-
+    @deprecated("Метод не используется. Вместо него используется получение общего количества товаров через JSON ответа.")
     @staticmethod
     def _get_count_item(stores: list | int) -> int:
-
+        """
+        Используется для получения общего количества товаров
+        через весь список магазинов
+        :param stores:
+        :return:
+        """
         if not stores:
             return stores
 
@@ -139,6 +276,11 @@ class Alkoteka(Spider):
 
     @staticmethod
     def _get_description(text_blocks: list) -> str:
+        """
+        Получение общего описания после совмещения всех текстовых блоков
+        :param text_blocks:
+        :return:
+        """
 
         if not text_blocks:
             return ""
@@ -152,6 +294,11 @@ class Alkoteka(Spider):
 
     @staticmethod
     def _get_all_characteristics(description_blocks: list) -> dict:
+        """
+        Получение всех характеристик товара
+        :param description_blocks:
+        :return:
+        """
         if not description_blocks:
             return {}
 
@@ -164,7 +311,7 @@ class Alkoteka(Spider):
                     ' '.join(
                         map(
                             lambda value: value.get("name"),
-                            block.get("values", {})
+                            values
                         )
                     )
                 )
@@ -177,6 +324,12 @@ class Alkoteka(Spider):
         return result
 
     def start_requests(self):
+
+        if type(self).STARTS_URL:
+            type(self).ROOT_CATEGORY_SLUGS.extend(
+                type(self)._parse_input_url(type(self).STARTS_URL)
+            )
+
         for slug in type(self).ROOT_CATEGORY_SLUGS:
             # for page in range(1, 10):
             for page in range(1, 2):
@@ -190,6 +343,7 @@ class Alkoteka(Spider):
                     'page': page,
                     'root_category_slug': slug,
                     'per_page': 200,
+
                 }
                 yield Request(
                     url=url,
@@ -199,18 +353,15 @@ class Alkoteka(Spider):
                     meta={
                         'page': page,
                         'root_category_slug': slug,
+                        # 'proxy': choice(self.proxy_pool)
                     }
 
                 )
 
     def parse(self, response: http.JsonResponse) -> dict:
-        """Обработка JSON-ответа"""
+        """Обработка JSON-ответа общая"""
         try:
             data = response.json()
-            item_slugs_for_api = []
-
-            # with open(f"{response.meta['root_category_slug']}.json", 'w', encoding='utf-8') as f:
-            #     json.dump(data, f, ensure_ascii=False, indent=4)
 
             for item in data.get('results', []):
                 if (item_slug := item.get("slug")):
@@ -226,11 +377,12 @@ class Alkoteka(Spider):
                         meta={
                             'item_slug': item_slug,
                             'product_url': item.get("product_url"),
+                            # 'proxy': choice(self.proxy_pool)
                         }
 
                     )
 
-                break
+                # break
 
 
         except Exception as e:
@@ -238,8 +390,14 @@ class Alkoteka(Spider):
             return
 
     def parse_items(self, response: http.JsonResponse) -> dict:
+        """
+        Обработка ответа на запрос по определенной позиции
+        :param response:
+        :return:
+        """
         try:
             data_response = response.json()
+            self.logger.debug(f"Response from {response.meta.get("product_url")}")
             if (data := data_response.get('results')):
                 alkoteka_item = AlkotekaItem()
                 alkoteka_item["timestamp"] = int(datetime.now(UTC).timestamp())
@@ -249,6 +407,7 @@ class Alkoteka(Spider):
                                                                description_blocks=data.get("description_blocks"))
                 alkoteka_item["marketing_tags"] = type(self)._get_marketing_tags(data.get("filter_labels"))
                 alkoteka_item["brand"] = type(self)._get_brand(data.get("description_blocks"))
+                alkoteka_item["section"] = type(self)._get_section(data.get("category"))
                 alkoteka_item["price_data"] = {
                     "current": prev_price if (prev_price := data.get("prev_price")) else data.get("price"),
                     "original": data.get("price"),
@@ -256,7 +415,8 @@ class Alkoteka(Spider):
                 }
                 alkoteka_item["stock"] = {
                     "in_stock": data.get("available", False),
-                    "count": type(self)._get_count_item(data.get("availability", {}).get("stores", 0))
+                    # "count": type(self)._get_count_item(data.get("availability", {}).get("stores", 0)) # Подсчет через список магазинов
+                    "count": data.get("quantity_total", 0),
                 }
 
                 alkoteka_item["metadata"] = {
@@ -264,6 +424,7 @@ class Alkoteka(Spider):
                     "Артикул": data.get("vendor_code"),
                     **type(self)._get_all_characteristics(data.get("description_blocks"))
                 }
+                alkoteka_item["variants"] = type(self)._get_variants_count(data.get("description_blocks"))
 
                 yield alkoteka_item
 
