@@ -25,7 +25,7 @@ class AlkotekaConfig:
     используется для получения определенного города    
     """
 
-    ALKOTEKA_API_ALL_CITY: str = f'{BASE_URL}/web-api/v1/city?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416&page={{page}}'  # всего 3 страницы, 59 городов
+    ALKOTEKA_API_ALL_CITY: str = f'{BASE_URL}/web-api/v1/city?city_uuid={{current_city_uuid}}&page={{page}}'  # всего 3 страницы, 59 городов
     """
     Можно получить все доступные города, ответ по страницам. 
     
